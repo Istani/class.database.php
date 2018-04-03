@@ -21,6 +21,10 @@ class db {
       if (!$this->connection = mysql_connect($destination, $user, $password)) {
         $this->error("Keine Verbindung zum Datenbank-Server");
       }
+    } elseif ($this->system == "mysqli") {
+      if (!$this->connection = mysqli_connect($destination, $user, $password)) {
+        $this->error("Keine Verbindung zum Datenbank-Server");
+      }
     } elseif ($this->system == "sqlite") {
       
     } else {
@@ -32,6 +36,10 @@ class db {
     if ($this->system == "mysql") {
       if (!$this->database = mysql_select_db($database_name, $this->connection)) {
         $this->error("Keine Verbindung zur Datenbank moeglich!");
+      }
+    } elseif ($this->system == "mysqli") {
+      if (!$this->database = mysqli_select_db($this->connection, $database_name)) {
+        $this->error("Keine Verbindung zur Datenbank-File!");
       }
     } elseif ($this->system == "sqlite") {
       if (!$this->database = new SQLite3($database_name)) {
@@ -58,6 +66,17 @@ class db {
         }
       } else {
         $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgefuehrt werden!<br>" . mysql_error());
+      }
+    } elseif ($this->system == "mysqli") {
+      $sql_string = "SHOW TABLE STATUS";
+      if ($query = mysqli_query($this->connection, $sql_string)) {
+        while ($row = mysqli_fetch_assoc($query)) {
+          if ($row['Comment'] != "view") {
+            $return_array[] = $row['Name'];
+          }
+        }
+      } else {
+        $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgefuehrt werden!<br>" . mysqli_error($this->connection));
       }
     } else if ($this->system == "sqlite") {
       $sql_string = "SELECT * FROM sqlite_master";
@@ -102,6 +121,10 @@ class db {
       $return_status=mysql_query($sql_string, $this->connection);
       $sql_string2="ALTER TABLE `".strtolower($table)."` ADD PRIMARY KEY(".$pkfeld.");";
       $return_status=mysql_query($sql_string2, $this->connection);
+    } elseif ($this->system=="mysqli") {
+      $return_status=mysqli_query($this->connection, $sql_string);
+      $sql_string2="ALTER TABLE `".strtolower($table)."` ADD PRIMARY KEY(".$pkfeld.");";
+      $return_status=mysqli_query($this->connection, $sql_string2);
     } else if ($this->system=="sqlite"){
       $return_status=$this->database->exec($sql_string);
     }
@@ -126,6 +149,13 @@ class db {
         
         if ($this->system=="mysql") {
           $return_status=mysql_query($sql_string, $this->connection);
+          $isFelder[0][$key]=$value;
+          // Bei Duplicate column Name macht der Probleme... bei Sqlite klappte des -.-
+          //if (!$return_status){
+          //  $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgeführt werden!<br>" . mysql_error());
+          //}
+        } elseif ($this->system=="mysqli") {
+          $return_status=mysqli_query($this->connection, $sql_string);
           $isFelder[0][$key]=$value;
           // Bei Duplicate column Name macht der Probleme... bei Sqlite klappte des -.-
           //if (!$return_status){
@@ -184,6 +214,34 @@ class db {
         $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgeführt werden!<br>" . mysql_error());
       }
     }
+		if ($this->system == "mysqli") {
+      if ($where_string != "") {
+        $sql_string = "SELECT " . $sql_felder . " FROM " . $tabelle . " WHERE " . $where_string;
+      } else {
+        $sql_string = "SELECT " . $sql_felder . " FROM " . $tabelle;
+      }
+      //echo $sql_string.'<br>';
+      if ($query = mysqli_query($this->connection, $sql_string)) {
+        if (mysqli_num_rows($query) > 0) {
+          while ($row = mysqli_fetch_assoc($query)) {
+            $return_array[] = $row;
+          }
+        } else {
+          if ($show_empty) {
+            $sql_string = "SHOW COLUMNS FROM " . $tabelle;
+            if ($query = mysqli_query($this->connection, $sql_string)) {
+              while ($row = mysqli_fetch_assoc($query)) {
+                $return_array[0][$row['Field']] = "";
+              }
+            } else {
+              $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgeführt werden!<br>" . mysqli_error($this->connection));
+            }
+          }
+        }
+      } else {
+        $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgeführt werden!<br>" . mysqli_error($this->connection));
+      }
+    }
     if ($this->system == "sqlite") {
       if ($where_string != "") {
         $sql_string = "SELECT " . $sql_felder . " FROM " . $tabelle . " WHERE " . $where_string;
@@ -231,6 +289,11 @@ class db {
         $return_bool = true;
       }
     }
+		if ($this->system == "mysqli") {
+      if ($query = mysqli_query($this->connection, $sql_string)) {
+        $return_bool = true;
+      }
+    }
     if ($this->system == "sqlite") {
       if ($query = sqlite_query($this->database, $sql_string)) {
         $return_bool = true;
@@ -248,6 +311,11 @@ class db {
         $return_bool = true;
       }
     }
+		if ($this->system == "mysqli") {
+      if ($query = mysqli_query($this->connection, $sql_string)) {
+        $return_bool = true;
+      }
+    }
     if ($this->system == "sqlite") {
       if ($query = sqlite_query($this->database, $sql_string)) {
         $return_bool = true;
@@ -260,6 +328,9 @@ class db {
     // TODO: Shouldn't Exists!
     if ($this->system == 'mysql') {
       mysql_query($sql_statment, $this->connection);
+    }
+		 if ($this->system == 'mysqli') {
+      mysqli_query($this->connection, $sql_statment);
     }
     if ($this->system == 'sqlite') {
       sqlite_query($this->database,$sql_statment);
@@ -302,6 +373,14 @@ class db {
         $return = true;
       } else {
         $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgefuehrt werden!<br>" . mysql_error());
+      }
+    }
+		if ($this->system == "mysqli") {
+      $sql_string = "INSERT INTO " . $tabelle . " SET " . $sql_felder . " ON DUPLICATE KEY UPDATE " . $sql_felder;
+      if ($query = mysqli_query($this->connection, $sql_string)) {
+        $return = true;
+      } else {
+        $this->error("<b>Abfrage:</b> <i>" . $sql_string . "</i><br>Konnte nicht ausgefuehrt werden!<br>" . mysqli_error($this->connection));
       }
     }
     if ($this->system == "sqlite") {
