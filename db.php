@@ -271,7 +271,10 @@ class db {
         $value = stripslashes($value);
       }
       $key=strtolower($key);
-      $value = str_replace("'", "", $value);
+      //$value = str_replace("'", "", $value);
+			//$value = mysql_real_escape_string($value, $this->connection);
+			$value=str_replace(array('\\', "\0", "\n", "\r", "'", '"', "\x1a"), array('\\\\', '\\0', '\\n', '\\r', "\\'", '\\"', '\\Z'), $value);
+			
       //$value = utf8_decode($value);
       if ($sql_felder == "") {
         $sql_felder ="`".$key."`='" . $value . "'";
